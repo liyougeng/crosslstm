@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     if args.use_glove:
         print("[INFO] Get glove embedding.")
-        glove = get_glove_inited_embeddings(table)
+        glove = get_glove_inited_embeddings(table, force_rebuild_vocab)
     else:
         print("[INFO] glove is disabled, init word_embedding from uniform distribution. ")
         glove = None

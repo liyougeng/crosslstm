@@ -17,7 +17,7 @@ word_scale = 0.05
 
 use_cuda = True
 
-force_rebuild_vocab = True
+force_rebuild_vocab = False
 display_iter = 500
 
 def parse_args():
@@ -55,12 +55,27 @@ def parse_args():
     parser.add_argument('--use_cuda', default=True,
                         help='enable cuda or not.')
 
-    parser.add_argument('--use_glove', type=bool, default=False,
+    parser.add_argument('--use_glove', type=bool, default=True,
                         help='enable init from glove embeddings.')
-    parser.add_argument('--freeze', type=bool, default=False,
+    parser.add_argument('--freeze', type=bool, default=True,
                         help='DO NOT finetune the word embeddings')
     
     parser.add_argument('--weight', type=str, default='',
                         help='weight file for initializing the model.')
+
+    parser.add_argument('--use_improved', type=bool, default=True,
+                        help='Use new improved crosslstm')
+    parser.add_argument('--use_link', type=bool, default=True,
+                        help='Use word link in new improved crosslstm')
+    parser.add_argument('--combine_factor', type=float, default=-1.0,
+                        help='combination factor between 0 and 1.0, default -1.0 to disable it. >1.0 to concat only used with --use_improved')
+
+    parser.add_argument('--gate_type', type=int, default=0,
+                        help='gate_type in LSTM, 0 for default, 1 for scale, 2 for shift, 3 for sacle&shift, 4,5,6 is two independent gates, not use.')
+    parser.add_argument('--gate_factor', type=float, default=1.0,
+                        help='gate factor between 1 to +00, recommend 1.09 or 1.1')
+    parser.add_argument('--gate_bias', type=float, default=0.0,
+                        help='gate bias range (-1,1), small negative ')
+
     args = parser.parse_args()
     return args

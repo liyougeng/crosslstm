@@ -15,7 +15,7 @@ import config
 SELF_TRAIN_TEST =  True
 SAVE_MODEL_PATH_PREFIX = './checkpoints/model_pkg_'
 file_pattern = SAVE_MODEL_PATH_PREFIX + "in-{}_cell-{}_" + \
-                    "pair-{}_vocab-{}_wscal-{}_{}_{}_lr-{}_epoch-{}.pth"
+                    "pair-{}_vocab-{}_wscal-{}_{}_{}_{}{}{}{}{}{}lr-{}_epoch-{}.pth"
 TRAIN, DEV, TEST = (0, 1 ,2)
 
 def map_label_to_target(label, num_classes, use_cuda):
@@ -49,7 +49,7 @@ def train(train_data, pair_net, criterion, optimizer, \
     pair_net.zero_grad()
     for ep in xrange(cur_epoch, epoch):
         random.shuffle(idxs)
-        save_flag = False
+        save_flag1, save_flag2, save_flag3 = False, False, False
         for i,idx in enumerate(idxs):
             iters += 1
             da, db, score = train_data[idx]
@@ -73,15 +73,15 @@ def train(train_data, pair_net, criterion, optimizer, \
         
         # train_data self test?
         if SELF_TRAIN_TEST:
-            save_flag, history_metric, fp = checkTrainedPerformance(args, vocab_size, ep, learning_rate, history_metric, \
+            save_flag1, history_metric, fp = checkTrainedPerformance(args, vocab_size, ep, learning_rate, history_metric, \
                                                         TRAIN ,train_data, pair_net, criterion, num_classes, use_cuda)
         if dev_data is not None:
-            save_flag, history_metric, fp = checkTrainedPerformance(args, vocab_size, ep, learning_rate, history_metric, \
+            save_flag2, history_metric, fp = checkTrainedPerformance(args, vocab_size, ep, learning_rate, history_metric, \
                                                         DEV, dev_data, pair_net, criterion, num_classes, use_cuda)
-        if test_data is None:
-            save_flag, history_metric, fp = checkTrainedPerformance(args, vocab_size, ep, learning_rate, history_metric, \
+        if test_data is not None:
+            save_flag3, history_metric, fp = checkTrainedPerformance(args, vocab_size, ep, learning_rate, history_metric, \
                                                         TEST, test_data, pair_net, criterion, num_classes, use_cuda)
-        if save_flag or (ep == epoch - 1):
+        if save_flag1 or save_flag2 or save_flag3 or (ep == epoch - 1):
             # Save loss & draw loss image and save & save model
             checkpoint = {'model':pair_net.state_dict(), 'optim': optimizer, \
                             'cur_epoch': ep, 'epoch': epoch, 'args': args}
@@ -95,19 +95,19 @@ def test(dataset, pair_net, criterion, num_classes, use_cuda):
     golds = torch.zeros(len(dataset))
     preds = torch.zeros(len(dataset))
     losses = 0.0
-    pair_net.eval()
+    # pair_net.eval()
     for i in range(len(dataset)):
         item = dataset[i]
         prediction = pair_net(item[0], item[1])
         target = map_label_to_target(item[2], num_classes, use_cuda)
         loss = criterion(prediction, target)
-        losses += loss
+        losses += loss.data[0]
         output = prediction.data.squeeze().cpu()
         result = torch.dot(indices, torch.exp(output))
         preds[i] = result
         golds[i] = item[2]
         
-    pair_net.train()
+    # pair_net.train()
     return preds, golds, losses / len(dataset)
 
 def checkTrainedPerformance(args, vocab_size, ep, lr, history_metric, sp,
@@ -124,6 +124,12 @@ def checkTrainedPerformance(args, vocab_size, ep, lr, history_metric, sp,
                      args.pair_dim, vocab_size, args.word_scale, 
                      "glove" if args.use_glove else "",
                      "freeze" if args.freeze else "",
+                     "_improved_" if args.use_improved else "",
+                     "_linked_" if args.use_link else "",
+                     "_cbf_"+str(args.combine_factor) if args.combine_factor >= 0 else "",
+                     "_gate_"+str(args.gate_type) if args.gate_type != 0 else "",
+                     "_ga_factor_"+str(args.gate_factor) if args.gate_factor != 1.0 else "",
+                     "_ga_bias_"+str(args.gate_bias) if args.gate_bias != 0.0 else "",
                      lr, ep)
     Log(file_path, info)
     isBetter = False
@@ -134,12 +140,18 @@ def checkTrainedPerformance(args, vocab_size, ep, lr, history_metric, sp,
 
 def checkLast(args, vocab_size):
     
-    paths = []
+    paths = [] # store list of (model, epoch_of_it)
     for x in xrange(args.epoch):
         file_path = file_pattern.format(args.input_dim, args.hidden_dim, 
                  args.pair_dim, vocab_size, args.word_scale,  
                  "glove" if args.use_glove else "",
                  "freeze" if args.freeze else "",
+                 "_improved_" if args.use_improved else "",
+                 "_linked_" if args.use_link else "",
+                 "_cbf_"+str(args.combine_factor) if args.combine_factor >= 0 else "",
+                 "_gate_"+str(args.gate_type) if args.gate_type != 0 else "",
+                 "_ga_factor_"+str(args.gate_factor) if args.gate_factor != 1.0 else "",
+                 "_ga_bias_"+str(args.gate_bias) if args.gate_bias != 0.0 else "",
                  args.lr, x)
         if os.path.exists(file_path):
             paths.append((file_path, x))
@@ -162,7 +174,14 @@ def trainer(args, vocab, train_data, dev_data = None, test_data = None, glove = 
 
     freeze = args.freeze
 
-    pair_net = PairCrossLSTM(input_dim, hidden_dim, pair_dim, output_dim, vocab_size, num_classes, word_scale, use_cuda, glove, freeze)
+    if (args.combine_factor >= 0.0 and  (not args.use_link))  :
+        print("[ERROR] combine_factor is enabled, thus you must enable the use_link!")
+        exit(-1)
+
+    pair_net = PairCrossLSTM(input_dim, hidden_dim, pair_dim, output_dim, vocab_size, \
+                              num_classes, word_scale, use_cuda, glove, freeze,\
+                              args.use_improved, args.use_link, args.combine_factor, \
+                              args.gate_type, args.gate_factor, args.gate_bias)
     criterion = nn.KLDivLoss()
 
     if use_cuda:
@@ -177,7 +196,7 @@ def trainer(args, vocab, train_data, dev_data = None, test_data = None, glove = 
             if 'optim' in history_parameters:
                 optimizer = history_parameters['optimizer']
         else: # version 1 history parameters
-            model = history_parameters
+            model = history_parameters 
             optimizer = torch.optim.Adagrad(pair_net.parameters(), lr=learning_rate, weight_decay=weight_decay)
     else:
     # check previous stored checkpoints.

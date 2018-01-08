@@ -84,9 +84,9 @@ def load_word_vectors(word_path, glove_path, table, force=True):
     print('[INFO] processed %d words of %d words which are not in glove.' %(cc, len(table)))
     return vectors
     
-def get_glove_inited_embeddings(table):
+def get_glove_inited_embeddings(table, force=True):
     # table is a dictionary which maps a word to its idx
-    glove_emb = load_word_vectors('./sentdata/', './sentdata/glove/glove.840B.300d', table)
+    glove_emb = load_word_vectors('./sentdata/', './sentdata/glove/glove.840B.300d', table, force)
     for item in ['<BOS>', '<EOS>', '<UNK>', '<PAD>']:
         glove_emb[table[item]].zero_()
     return glove_emb

@@ -3,7 +3,8 @@ import pickle as pkl
 from matplotlib import pyplot as plt
 from pylab import figure, axes, pie, title, show
 
-def process_training_history(train_loss_history, training_prefix, silent=True):
+def process_training_history(train_loss_history, training_full_name, silent=True):
+    training_prefix = training_full_name[14:-4]
     loss_pkl_file = './logs/' + training_prefix + '.pkl'
     loss_jpg_file = './logs/' + training_prefix + '.jpg'
     loss_eps_file = './logs/eps/' + training_prefix + '.eps'
