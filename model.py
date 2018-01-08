@@ -210,6 +210,76 @@ class ImprovedTreeNode(nn.Module):
         else:
             return h, c
 
+class InnerLSTM(nn.Module):
+    # TODO, problematic, solving it
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, use_gpu):
+        super(InnerLSTM, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.use_gpu = use_gpu
+
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
+        #  self.hidden2label = nn.Linear(hidden_dim, label_size)
+        self.hidden = self.init_hidden()
+
+    def init_hidden(self):
+        h0 = torch.zeros(1, self.hidden_dim)
+        c0 = torch.zeros(1, self.hidden_dim)
+        if self.use_gpu:
+            return (Variable(h0.cuda(), Variable(c0.cuda())))
+        else:
+            return (Variable(h0), Variable(c0))
+
+    def forward(self, sentence):
+        assert False, "Error! code not validate yet on process sentences"
+        tsent = Variable(torch.LongTensor(sentence))
+        if self.use_gpu:
+            tsent = tsent.cuda()
+        embeds = self.word_embeddings(tsent)
+        x = embeds.view(len(sentence), -1)
+        lstm_out, self.hidden = self.lstm(x, self.hidden)
+        #y  = self.hidden2label(lstm_out[-1])
+        return lstm_out[-1]
+    
+
+class OuterLSTM(nn.Module):
+    
+    def __init__(self, embedding_dim, hidden_dim, vocab_size, use_gpu):
+        super(OuterLSTM, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.use_gpu = use_gpu
+
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        self.encode_x = nn.Linear(embedding_dim, 4 * hidden_dim)
+        self.encode_h = nn.Linear(hidden_dim, 4 * hidden_dim)
+    
+    def init_hidden(self):
+        h0 = torch.zeros(1, self.hidden_dim)
+        c0 = torch.zeros(1, self.hidden_dim)
+        if self.use_gpu:
+            return (Variable(h0.cuda(), Variable(c0.cuda())))
+        else:
+            return (Variable(h0), Variable(c0))
+
+    def node_forward(self, hidden, cell, word_emb):
+        hx = self.encode_h(hidden) + self.encode_x(word_emb)
+        i, f, o, u =  torch.split(hx, hx.size(1) // 4, dim=1)
+        i, f, o, u = F.sigmoid(i), F.sigmoid(f), F.sigmoid(o), F.tanh(o)
+        c = torch.mul(f, cell) + torch.mul(i, u)
+        h = torch.mul(o, c)
+        return (h, c)
+    
+    def forward(self, sentence):
+        h, c = self.init_hidden()
+        for word in sentence:
+            word_idx = Variable(torch.LongTensor([word]))
+            if self.use_gpu:
+                word_idx = word_idx.cuda()
+            h, c = self.node_forward(h, c, self.word_embeddings(word_idx))
+        return h, c
+        
+    
+
 class PairCrossLSTM(nn.Module):
     def __init__(self, input_dim, hidden_dim, pair_dim, output_dim, vocab_size, 
                  num_classes, word_scale=0.05, cuda_enbaled=False, glove_mat = None, freeze = False, 
@@ -258,7 +328,7 @@ class PairCrossLSTM(nn.Module):
             if self.combine_factor >= 0.0:
                 lh, _ = self.crosslstm.last_child_state
                 if self.combine_factor > 1.0:
-                    ha = torch.cat((ha, lh), 1)
+                    ha = torch.cat(ha, lh)
                 else:
                     ha = ha * self.combine_factor + lh * (1 - self.combine_factor)
 
@@ -267,7 +337,7 @@ class PairCrossLSTM(nn.Module):
             if self.combine_factor >= 0.0:
                 lh, _ = self.crosslstm.last_child_state
                 if self.combine_factor > 1.0:
-                    hb = torch.cat((hb, lh), 1)
+                    hb = torch.cat(hb, lh)
                 else:
                     hb = hb * self.combine_factor + lh * (1 - self.combine_factor)
                 

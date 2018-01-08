@@ -1,5 +1,7 @@
 *.pt
 *.pyc
-./checkpoints/*
-./logs/*
-./sentdata/*
+checkpoints/*.pth
+logs/*.log
+logs/*.pkl
+sentdata/*.pkl
+sentdata/*.pth

@@ -61,6 +61,36 @@ class Tree(object):
     def getWH(self):
         return self.getWidth()
     
+    def compact(self):
+        if len(self.children) == 0: #leaf
+            return
+        elif len(self.children) == 1:
+            #print('Throw %s of %s' %(self.children[0].node_type, self.node_type ))
+            if  not self.children[0].isMid():
+                self.node_type = self.children[0].node_type
+                self.word = self.children[0].word
+                self.raw_word = self.children[0].raw_word
+                self.children = list()
+            else:
+                self.children= self.children[0].children
+            self.compact()
+        else:
+            for ix, c in enumerate(self.children):
+                c.compact()
+    
+    def tolist(self, container = None):
+        isRoot = False
+        if container is None:
+            container = list()
+            isRoot = True
+        if not self.isMid():
+            container.append(self)
+        else:
+            for c in self.children:
+                c.tolist(container)
+        if isRoot:
+            return container
+    
     def beautifyOutput(self, canvas=None, offx=None, offy=None):
         isRoot = True if canvas is None else False
         if canvas is None: # root node
