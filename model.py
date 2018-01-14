@@ -219,8 +219,7 @@ class InnerLSTM(nn.Module):
 
         self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, hidden_dim)
-        #  self.hidden2label = nn.Linear(hidden_dim, label_size)
-        self.hidden = self.init_hidden()
+
 
     def init_hidden(self):
         h0 = torch.zeros(1, self.hidden_dim)
@@ -230,16 +229,17 @@ class InnerLSTM(nn.Module):
         else:
             return (Variable(h0), Variable(c0))
 
-    def forward(self, sentence):
-        assert False, "Error! code not validate yet on process sentences"
-        tsent = Variable(torch.LongTensor(sentence))
-        if self.use_gpu:
-            tsent = tsent.cuda()
-        embeds = self.word_embeddings(tsent)
-        x = embeds.view(len(sentence), -1)
-        lstm_out, self.hidden = self.lstm(x, self.hidden)
-        #y  = self.hidden2label(lstm_out[-1])
-        return lstm_out[-1]
+    def forward(self, tree_list):
+        sentence = [tree.word for tree in tree_list]
+        hidden = self.init_hidden()
+        for word in sentence:
+            word_idx = Variable(torch.LongTensor([word]))
+            if self.use_gpu:
+                word_idx = word_idx.cuda()
+            embeds = self.word_embeddings(word_idx)
+            x = embeds.view(1, 1, -1)
+            lstm_out, hidden = self.lstm(x, hidden)
+        return hidden[0][0], hidden[1][0]
     
 
 class OuterLSTM(nn.Module):
@@ -266,7 +266,7 @@ class OuterLSTM(nn.Module):
         i, f, o, u =  torch.split(hx, hx.size(1) // 4, dim=1)
         i, f, o, u = F.sigmoid(i), F.sigmoid(f), F.sigmoid(o), F.tanh(u)
         c = torch.mul(f, cell) + torch.mul(i, u)
-        h = torch.mul(o, c)
+        h = torch.mul(o, F.tanh(c))
         return (h, c)
     
     def forward(self, sentence):
