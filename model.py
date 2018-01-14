@@ -264,7 +264,7 @@ class OuterLSTM(nn.Module):
     def node_forward(self, hidden, cell, word_emb):
         hx = self.encode_h(hidden) + self.encode_x(word_emb)
         i, f, o, u =  torch.split(hx, hx.size(1) // 4, dim=1)
-        i, f, o, u = F.sigmoid(i), F.sigmoid(f), F.sigmoid(o), F.tanh(o)
+        i, f, o, u = F.sigmoid(i), F.sigmoid(f), F.sigmoid(o), F.tanh(u)
         c = torch.mul(f, cell) + torch.mul(i, u)
         h = torch.mul(o, c)
         return (h, c)
